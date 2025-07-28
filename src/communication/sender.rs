@@ -86,10 +86,10 @@ impl MessageSender {
         self.session
             .send_keys(target_pane, &command_message)
             .await?;
-        self.session.send_enter_key(target_pane).await?;
 
         // 短い遅延後に追加のEnterキー送信
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        self.session.send_enter_key(target_pane).await?;
         self.log_message(message)?;
 
         Ok(())
