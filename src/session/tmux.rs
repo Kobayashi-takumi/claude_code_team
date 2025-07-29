@@ -96,6 +96,35 @@ mod tests {
         let result = session.send_enter_key("nonexistent:0.0").await;
         assert!(result.is_err(), "Send enter key to nonexistent pane should fail");
     }
+
+    #[test]
+    fn test_is_inside_tmux() {
+        // 環境変数TMUX_PANEまたはTMUXが設定されている場合、tmux内と判定
+        std::env::set_var("TMUX_PANE", "%1");
+        assert!(is_inside_tmux(), "Should detect tmux environment with TMUX_PANE");
+        
+        std::env::remove_var("TMUX_PANE");
+        std::env::set_var("TMUX", "/tmp/tmux-1000/default,12345,0");
+        assert!(is_inside_tmux(), "Should detect tmux environment with TMUX");
+        
+        std::env::remove_var("TMUX");
+        assert!(!is_inside_tmux(), "Should not detect tmux environment without variables");
+    }
+
+    #[tokio::test]
+    async fn test_get_current_tmux_session() {
+        // tmuxが利用可能かチェック
+        if tokio::process::Command::new("tmux").arg("-V").output().await.is_err() {
+            println!("tmux not available, skipping test");
+            return;
+        }
+
+        // tmux環境外では取得できないことを確認
+        std::env::remove_var("TMUX");
+        std::env::remove_var("TMUX_PANE");
+        let result = get_current_tmux_session().await;
+        assert!(result.is_err(), "Should fail to get session outside tmux");
+    }
 }
 
 pub struct TmuxSession {
@@ -289,4 +318,31 @@ impl TmuxSession {
 
         Ok(())
     }
+}
+
+pub fn is_inside_tmux() -> bool {
+    std::env::var("TMUX").is_ok() || std::env::var("TMUX_PANE").is_ok()
+}
+
+pub async fn get_current_tmux_session() -> Result<String> {
+    if !is_inside_tmux() {
+        return Err(AppError::TmuxError(
+            "tmuxセッション内で実行するか、--sessionでセッション名を指定してください".to_string()
+        ));
+    }
+
+    let output = Command::new("tmux")
+        .args(["display-message", "-p", "#{session_name}"])
+        .output()
+        .await
+        .map_err(|e| AppError::TmuxError(format!("Failed to get current session: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(AppError::TmuxError(
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        ));
+    }
+
+    let session_name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(session_name)
 }

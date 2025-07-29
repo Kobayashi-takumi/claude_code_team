@@ -24,21 +24,28 @@ async fn main() -> Result<()> {
             init_project().await?;
         }
         Commands::Start {
+            session,
             dangerously_skip_permissions,
         } => {
-            start_team(dangerously_skip_permissions).await?;
+            let session_name = session.unwrap_or_else(|| "claude-code-team".to_string());
+            start_team(&session_name, dangerously_skip_permissions).await?;
         }
-        Commands::Send { agent, message } => {
-            send_message(&agent, &message).await?;
+        Commands::Send {
+            session,
+            agent,
+            message,
+        } => {
+            send_message(session.as_deref(), &agent, &message).await?;
         }
-        Commands::Stop => {
-            stop_team().await?;
+        Commands::Stop { session_name } => {
+            let session_name = session_name.unwrap_or_else(|| "claude-code-team".to_string());
+            stop_team(&session_name).await?;
         }
         Commands::Logs { agent } => {
             show_logs(agent.as_deref()).await?;
         }
-        Commands::Attach => {
-            attach_session().await?;
+        Commands::Attach { session_name } => {
+            attach_session(&session_name).await?;
         }
     }
 
@@ -51,21 +58,24 @@ async fn init_project() -> Result<()> {
     Ok(())
 }
 
-async fn start_team(skip_permissions: bool) -> Result<()> {
-    info!("Starting agent team");
+async fn start_team(session_name: &str, skip_permissions: bool) -> Result<()> {
+    info!("Starting agent team with session: {}", session_name);
 
     if skip_permissions {
         println!("⚠️  警告: 権限チェックをスキップしています（セキュリティリスク）");
     }
 
     let mut manager = AgentManager::new(skip_permissions);
-    manager.setup_session().await?;
+    manager.setup_session_with_name(session_name).await?;
     manager.launch_all().await?;
 
     if skip_permissions {
-        println!("✓ エージェントチームを起動しました（権限チェックなし）");
+        println!(
+            "✓ エージェントチーム '{}' を起動しました（権限チェックなし）",
+            session_name
+        );
     } else {
-        println!("✓ エージェントチームを起動しました");
+        println!("✓ エージェントチーム '{}' を起動しました", session_name);
     }
     println!("  📊 Brain: ワークフロー管理・要求分析");
     println!("  🏗️  Arch: システム設計・実装方針策定");
@@ -75,25 +85,36 @@ async fn start_team(skip_permissions: bool) -> Result<()> {
     Ok(())
 }
 
-async fn send_message(agent: &str, message_content: &str) -> Result<()> {
-    info!("Sending message to {}: {}", agent, message_content);
+async fn send_message(session: Option<&str>, agent: &str, message_content: &str) -> Result<()> {
+    let session_name = match session {
+        Some(s) => s.to_string(),
+        None => claude_code_team::session::get_current_tmux_session().await?,
+    };
 
-    let sender = MessageSender::new("claude-code-team")?;
+    info!(
+        "Sending message to {} in session {}: {}",
+        agent, session_name, message_content
+    );
+
+    let sender = MessageSender::new(&session_name)?;
     let message = Message::new("user", agent, message_content, MessageType::Task);
 
     sender.send(&message).await?;
-    println!("✓ {} にメッセージを送信しました", agent);
+    println!(
+        "✓ セッション '{}' の {} にメッセージを送信しました",
+        session_name, agent
+    );
 
     Ok(())
 }
 
-async fn stop_team() -> Result<()> {
-    info!("Stopping agent team");
+async fn stop_team(session_name: &str) -> Result<()> {
+    info!("Stopping agent team: {}", session_name);
 
-    let session = claude_code_team::session::TmuxSession::new("claude-code-team");
+    let session = claude_code_team::session::TmuxSession::new(session_name);
     session.kill_session().await?;
 
-    println!("✓ エージェントチームを停止しました");
+    println!("✓ エージェントチーム '{}' を停止しました", session_name);
 
     Ok(())
 }
@@ -122,13 +143,13 @@ async fn show_logs(agent: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-async fn attach_session() -> Result<()> {
-    info!("Attaching to tmux session");
+async fn attach_session(session_name: &str) -> Result<()> {
+    info!("Attaching to tmux session: {}", session_name);
 
-    let session = claude_code_team::session::TmuxSession::new("claude-code-team");
+    let session = claude_code_team::session::TmuxSession::new(session_name);
     session.attach_session().await?;
 
-    println!("✓ claude-code-teamセッションに接続しました");
+    println!("✓ セッション '{}' に接続しました", session_name);
 
     Ok(())
 }

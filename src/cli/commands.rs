@@ -19,6 +19,9 @@ pub enum Commands {
 
     #[command(about = "エージェントチームの起動")]
     Start {
+        #[arg(short, long, help = "セッション名（デフォルト: claude-code-team）")]
+        session: Option<String>,
+
         #[arg(
             long,
             help = "⚠️  権限チェックをスキップ（セキュリティリスク：本番環境非推奨）"
@@ -28,6 +31,13 @@ pub enum Commands {
 
     #[command(about = "エージェントへのメッセージ送信")]
     Send {
+        #[arg(
+            short,
+            long,
+            help = "セッション名（未指定時は現在のセッションを自動検出）"
+        )]
+        session: Option<String>,
+
         #[arg(help = "送信先エージェント名")]
         agent: String,
 
@@ -36,7 +46,10 @@ pub enum Commands {
     },
 
     #[command(about = "エージェントチームの停止")]
-    Stop,
+    Stop {
+        #[arg(short, long, help = "停止するセッション名")]
+        session_name: Option<String>,
+    },
 
     #[command(about = "ログの表示")]
     Logs {
@@ -45,5 +58,8 @@ pub enum Commands {
     },
 
     #[command(about = "tmuxセッションに接続")]
-    Attach,
+    Attach {
+        #[arg(short, long, help = "接続するセッション名")]
+        session_name: String,
+    },
 }

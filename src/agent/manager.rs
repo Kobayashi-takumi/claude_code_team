@@ -58,6 +58,34 @@ impl AgentManager {
         Ok(())
     }
 
+    pub async fn setup_session_with_name(&mut self, session_name: &str) -> Result<()> {
+        self.session = TmuxSession::new(session_name);
+        println!("⏳ TMUXセッション '{}' を作成中...", session_name);
+
+        // 4つのエージェント用にセッションとペインを設定
+        self.session.setup_layout(self.agents.len()).await?;
+
+        println!("✓ セッション作成完了");
+        println!("⏳ {}つのペインを設定中...", self.agents.len());
+
+        // ペイン確認
+        if let Ok(panes) = self.session.list_panes().await {
+            for (i, pane) in panes.iter().enumerate() {
+                let agent_name = match i {
+                    0 => "Brain (ワークフロー管理)",
+                    1 => "Arch (システム設計)",
+                    2 => "Dev (実装)",
+                    3 => "QA (品質保証)",
+                    _ => "Unknown",
+                };
+                println!("  ├ ペイン {}: {} ({})", i, agent_name, pane);
+            }
+        }
+
+        println!("✓ 全ペイン作成完了");
+        Ok(())
+    }
+
     pub async fn launch_agent(&self, agent_name: &str) -> Result<()> {
         let agent = self
             .agents
