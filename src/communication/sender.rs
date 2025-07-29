@@ -41,6 +41,28 @@ mod tests {
         assert!(result.contains("test"));
         assert!(result.contains("\\; rm")); // エスケープされた形で含まれていることを確認
     }
+
+    #[test]
+    fn test_newline_support() {
+        let sender = MessageSender {
+            session: TmuxSession::new("test-session"),
+            log_dir: "./test-logs".to_string(),
+        };
+
+        // リテラル文字列 "\n" が実際の改行文字に変換されることを確認
+        let result = sender.escape_shell_string("line1\\nline2\\nline3");
+        assert!(result.contains("line1\nline2\nline3"));
+
+        // 複数行メッセージのフォーマット確認
+        let message = Message::new(
+            "user",
+            "dev",
+            "TODO機能実装\\n\\n要件:\\n- タスク追加\\n- 完了マーク",
+            MessageType::Task,
+        );
+        let formatted = sender.format_safe_message(&message);
+        assert!(formatted.contains("TODO機能実装\n\n要件:\n- タスク追加\n- 完了マーク"));
+    }
 }
 
 use super::Message;
@@ -111,6 +133,7 @@ impl MessageSender {
 
     fn escape_shell_string(&self, input: &str) -> String {
         input
+            .replace("\\n", "\n") // リテラル改行文字列を実際の改行に変換
             .replace('\\', "\\\\") // バックスラッシュをエスケープ
             .replace('"', "\\\"") // ダブルクォートをエスケープ
             .replace('$', "\\$") // ドル記号をエスケープ

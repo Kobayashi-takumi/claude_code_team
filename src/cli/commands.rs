@@ -31,7 +31,7 @@ pub enum Commands {
         #[arg(help = "送信先エージェント名")]
         agent: String,
 
-        #[arg(help = "メッセージ内容")]
+        #[arg(help = "メッセージ内容（改行は\\nで指定可能）")]
         message: String,
     },
 

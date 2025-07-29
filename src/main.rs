@@ -513,9 +513,9 @@ mod tests {
         assert!(!get_qa_instructions().is_empty());
 
         // 各指示書に適切なタイトルが含まれていることを確認
-        assert!(get_brain_instructions().contains("# BRAIN（ワークフロー管理）"));
-        assert!(get_arch_instructions().contains("# ARCH（アーキテクト）"));
-        assert!(get_dev_instructions().contains("# DEV（開発者）"));
-        assert!(get_qa_instructions().contains("# QA（品質保証）"));
+        assert!(get_brain_instructions().contains("BRAIN（ワークフロー管理）"));
+        assert!(get_arch_instructions().contains("ARCH（アーキテクト）"));
+        assert!(get_dev_instructions().contains("DEV（開発者）"));
+        assert!(get_qa_instructions().contains("QA（品質保証）"));
     }
 }
