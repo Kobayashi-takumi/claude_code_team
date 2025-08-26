@@ -16,6 +16,7 @@ Claude Code Team は、複数の AI エージェントが自動的に役割分�
 - 🔄 **自動ワークフロー実行**: 要求分析 → 設計 → 実装 → テスト → レビューの完全自動化
 - 📺 **リアルタイム協業**: tmux による並列実行とエージェント間コミュニケーション
 - ⚡ **高品質開発**: 設計レビューとテスト検証による堅牢なソフトウェア開発
+- 🔀 **マルチセッション対応**: 複数の AI 開発チームを同時に起動・管理可能
 
 ## 🚀 クイックスタート（5 分で体験）
 
@@ -30,13 +31,11 @@ claude-code-team set-up
 claude-code-team start
 
 # 3. AI開発チームのウィンドウをアタッチ
-claude-code-team attach
+claude-code-team attach claude-code-team
 
-# 4. 開発指示を送信
+# 4. 開発指示を送信(もしくは、左上のウィンドウで、"/brain ユーザー認証機能付きのWebアプリを作成してください")
 claude-code-team send brain "ユーザー認証機能付きのWebアプリを作成してください"
 
-# 5. 進捗確認
-claude-code-team status
 ```
 
 ### 実行結果例
@@ -118,7 +117,7 @@ claude-code-team set-up
 claude-code-team start
 
 # Step 2: ウィンドウをアタッチ
-claude-code-team attach
+claude-code-team attach claude-code-team
 
 # Step 3: 要件をBrainに伝達(必要であれば、何度でも)
 claude-code-team send brain "ECサイトを作ってください。ユーザー登録、商品一覧、決済機能が必要です"
@@ -126,6 +125,24 @@ claude-code-team send brain "ECサイトを作ってください。ユーザー�
 # Step 4: 完了後の停止
 claude-code-team stop
 ```
+
+#### ワークフローの詳細な動作
+
+```mermaid
+graph LR
+    A[Start] --> B[Brain: タスク分解]
+    B --> C[Arch: 設計]
+    C --> D[Brain: 設計判断]
+    D --> E[Dev: 開発]
+    E --> F[Brain: 開発判断]
+    F --> G[QA: テスト]
+    G --> H[Brain: テスト判断]
+    H --> I[Arch: レビュー]
+    I --> J[Brain: レビュー判断]
+    J --> K[Done]
+```
+
+Brain エージェントがワークフローを制御し、各エージェントの成果物を確認して次のステップへ進みます。
 
 ## 📊 コマンドリファレンス
 
@@ -138,43 +155,96 @@ claude-code-team set-up
 ### `start` - チーム起動
 
 ```bash
-claude-code-team start
+claude-code-team start [OPTIONS]
 ```
 
-TMUX セッションを作成し、4 つのエージェントを並列起動します。
+**オプション:**
+
+- `--session-name <NAME>`: TMUX セッション名を指定（デフォルト: claude-code-team）
+- `--dangerously-skip-permissions`: Claude CLI の権限チェックをスキップ
+
+TMUX セッションを作成し、4 つのエージェントを並列起動します。各エージェントは専用のペインで動作し、カスタムコマンド（/brain、/arch、/dev、/qa）を使用してメッセージを受信します。
 
 ### `attach` - ウィンドウのアタッチ
 
 ```bash
-claude-code-team attach
+claude-code-team attach <SESSION_NAME>
 ```
+
+**引数:**
+
+- `<SESSION_NAME>`: TMUX セッション名（必須）
 
 ### `send` - メッセージ送信
 
 ```bash
-claude-code-team send <AGENT> "<MESSAGE>"
-
-# 例(基本はbrainにのみ送る)
-claude-code-team send brain "ブログシステムを作成してください"
-claude-code-team send arch "アーキテクチャ設計をお願いします"
-claude-code-team send dev "APIドキュメントも作成してください"
+claude-code-team send <AGENT> "<MESSAGE>" [OPTIONS]
 ```
 
-### `logs` - ログ表示
+**引数:**
+
+- `<AGENT>`: 送信先エージェント (brain, arch, dev, qa)
+- `<MESSAGE>`: 送信するメッセージ（改行文字\n をサポート）
+
+**オプション:**
+
+- `--session-name <NAME>`: TMUX セッション名を指定
+
+**例:**
 
 ```bash
-# 全体ログ
-claude-code-team logs
+# 基本はbrainにのみ送る
+claude-code-team send brain "ブログシステムを作成してください"
 
-# 特定エージェントのログ
-claude-code-team logs --agent brain
+# 複数行のメッセージ
+claude-code-team send brain "以下の機能を実装してください:\n1. ユーザー認証\n2. 記事投稿\n3. コメント機能"
+
+# 特定セッションへの送信
+claude-code-team send brain "修正をお願いします" --session-name my-project
 ```
+
+**注意事項:**
+
+- シェル特殊文字は自動的にエスケープされます
+- TMUX の send-keys コマンドを使用してメッセージを送信
 
 ### `stop` - チーム停止
 
 ```bash
-claude-code-team stop
+claude-code-team stop [OPTIONS]
 ```
+
+**オプション:**
+
+- `--session-name <NAME>`: TMUX セッション名を指定
+
+TMUX セッションを終了し、すべてのエージェントを停止します。
+
+## 🔍 内部動作の詳細
+
+### メッセージ送信の仕組み
+
+1. **MessageSender 構造体**が送信を管理
+2. TMUX の`send-keys`コマンドでメッセージを送信
+3. シェル特殊文字（$、`、\、"など）を自動エスケープ
+4. 改行文字（\n）を実際の改行に変換
+5. セッション名とエージェントタイプからペイン ID を動的に解決
+
+### エラーハンドリング
+
+`src/error/types.rs`で統一された AppError 型を定義：
+
+- Configuration: 設定エラー
+- IO: ファイル I/O エラー
+- Tmux: TMUX コマンドエラー
+- Agent: エージェント関連エラー
+- Communication: 通信エラー
+
+### セッション管理
+
+- **マルチセッション対応**: 異なるセッション名で複数のチームを同時実行可能
+- **セッション分離**: 各セッションは独立したワークスペースを持つ
+- **動的ペイン解決**: セッション名に基づいてペインを特定
 
 ## ⚙️ 設定とカスタマイズ
 
